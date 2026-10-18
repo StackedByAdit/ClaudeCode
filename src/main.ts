@@ -19,9 +19,30 @@ if (!values.prompt) {
     process.exit(1);
 }
 
-const response = await ai.models.generateContent({
+const stream = await ai.models.generateContentStream({
     model: values.mode,
     contents: values.prompt,
 });
 
-console.log(response.text);
+let finalChunk;
+for await (const chunk of stream) {
+    if (chunk.text) {
+        process.stdout.write(chunk.text);
+    }
+    finalChunk = chunk;
+}
+
+process.stdout.write("\n");
+
+const final = Object.assign(finalChunk ?? {}, {
+    usage: {
+        input_tokens: finalChunk?.usageMetadata?.promptTokenCount,
+        output_tokens: finalChunk?.usageMetadata?.candidatesTokenCount,
+    },
+    stop_reason: finalChunk?.candidates?.[0]?.finishReason,
+});
+
+console.log(final);
+console.log(final.usage.input_tokens);
+console.log(final.usage.output_tokens);
+console.log(final.stop_reason);
